@@ -1,0 +1,859 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Infinite Hilly Field</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #000;
+        font-family: "Inter", sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+
+      /* --- MENU STYLES --- */
+      .menu-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(10px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        z-index: 20;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+      }
+
+      .menu-overlay.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .menu-box {
+        background: rgba(20, 20, 20, 0.85);
+        padding: 30px 40px;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        min-width: 300px;
+      }
+
+      .menu-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 25px;
+      }
+
+      .menu-button {
+        display: block;
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.2s ease;
+      }
+
+      .menu-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+      }
+
+      .menu-button:last-child {
+        margin-bottom: 0;
+      }
+
+      /* --- SETTINGS MENU STYLES --- */
+      .settings-control {
+        margin-bottom: 20px;
+        text-align: left;
+      }
+
+      .settings-control label {
+        display: block;
+        color: #ccc;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+      }
+
+      .settings-control input[type="range"] {
+        width: 100%;
+        cursor: pointer;
+      }
+
+      .settings-control input[type="checkbox"] {
+        width: auto;
+        margin-left: 0;
+      }
+
+      .settings-control span {
+        color: #fff;
+        font-weight: bold;
+      }
+
+      /* --- HUD STYLES (IN-GAME) --- */
+
+      /* Container for FPS/Coords/Seed (Top Left) */
+      #info-hud-container {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #ffffff;
+        padding: 10px 15px;
+        font-size: 14px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        z-index: 10;
+        line-height: 1.5;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        /* Default visibility: hidden */
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+      }
+
+      /* Container for Stamina Bar (Bottom Center) */
+      #stamina-hud-container {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+        text-align: center;
+        /* Default visibility: hidden */
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+      }
+
+      .hud-text {
+        color: #d1d5db;
+      }
+
+      /* Shared visibility class */
+      .visible {
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+
+      #stamina-bar-content {
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 15px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      }
+
+      #stamina-bar {
+        width: 150px;
+        height: 10px;
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        overflow: hidden;
+        margin-top: 5px;
+      }
+      #stamina-bar-fill {
+        height: 100%;
+        width: 100%;
+        background-color: #4caf50;
+        transition: width 0.1s linear, background-color 0.5s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Main Menu -->
+    <div id="main-menu" class="menu-overlay">
+      <div class="menu-box">
+        <h1 class="menu-title">Hilly Field</h1>
+        <button id="start-game-btn" class="menu-button">Start Game</button>
+        <button id="settings-btn" class="menu-button">Settings</button>
+      </div>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settings-menu" class="menu-overlay hidden">
+      <div class="menu-box">
+        <h1 class="menu-title">Settings</h1>
+        <div class="settings-control">
+          <label for="sensitivity-slider"
+            >Mouse Sensitivity: <span id="sensitivity-value">1.0</span></label
+          >
+          <input
+            type="range"
+            id="sensitivity-slider"
+            min="0.1"
+            max="5"
+            step="0.1"
+            value="1.0"
+          />
+        </div>
+        <div class="settings-control">
+          <label for="render-distance-slider"
+            >Render Distance: <span id="render-distance-value">5</span></label
+          >
+          <input
+            type="range"
+            id="render-distance-slider"
+            min="1"
+            max="10"
+            step="1"
+            value="5"
+          />
+        </div>
+        <div class="settings-control flex justify-between items-center">
+          <label for="show-hud-toggle" style="margin-bottom: 0"
+            >Show Info HUD (FPS, Coords, Seed)</label
+          >
+          <input type="checkbox" id="show-hud-toggle" />
+        </div>
+        <hr style="margin: 20px 0; border: 1px solid rgba(255, 255, 255, 0.1)" />
+        <button id="back-to-main-btn" class="menu-button">Back</button>
+      </div>
+    </div>
+
+    <!-- In-Game HUD (Top-Left Info: Coords, Seed, FPS, TPS) -->
+    <div id="info-hud-container">
+      <div class="hud-text" id="coord-display">X: 0.00 | Z: 0.00</div>
+      <div class="hud-text" id="seed-display">Seed: ...</div>
+      <div class="hud-text" id="fps-counter">FPS: 0</div>
+      <div class="hud-text" id="tps-counter">TPS: 0</div>
+    </div>
+
+    <!-- In-Game Stamina Bar (Bottom-Center) -->
+    <div id="stamina-hud-container">
+      <div id="stamina-bar-content">
+        <div class="hud-text" style="font-size: 12px; margin-bottom: 2px">
+          STAMINA
+        </div>
+        <div id="stamina-bar">
+          <div id="stamina-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- SEEDED PERLIN NOISE IMPLEMENTATION ---
+      const NoiseGenerator = function (initialSeed) {
+        function SeedableRandom(seed) {
+          let state = seed || 1;
+          state = Math.abs(Math.floor(state));
+          if (state === 0) state = 1;
+
+          return function () {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            return (state >>> 0) / 4294967296;
+          };
+        }
+
+        let seededRandom = SeedableRandom(initialSeed);
+        const random = () => seededRandom();
+
+        const P = [];
+        for (let i = 0; i < 256; i++) {
+          P[i] = i;
+        }
+
+        for (let i = P.length - 1; i > 0; i--) {
+          const j = Math.floor(random() * (i + 1));
+          [P[i], P[j]] = [P[j], P[i]];
+        }
+
+        const permutation = new Uint8Array(512);
+        for (let i = 0; i < 512; i++) {
+          permutation[i] = P[i & 255];
+        }
+
+        const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+        const lerp = (a, b, t) => a + t * (b - a);
+        const grad = (hash, x, y) => {
+          switch (hash & 0x7) {
+            case 0x0:
+              return x + y;
+            case 0x1:
+              return -x + y;
+            case 0x2:
+              return x - y;
+            case 0x3:
+              return -x - y;
+            case 0x4:
+              return y + x;
+            case 0x5:
+              return -y + x;
+            case 0x6:
+              return y - x;
+            case 0x7:
+              return -y - x;
+          }
+        };
+
+        function PerlinNoise(x, y) {
+          let X = Math.floor(x) & 255;
+          let Y = Math.floor(y) & 255;
+          x -= Math.floor(x);
+          y -= Math.floor(y);
+
+          let u = fade(x);
+          let v = fade(y);
+
+          let A = permutation[X] + Y;
+          let B = permutation[X + 1] + Y;
+
+          let hashA = permutation[A];
+          let hashB = permutation[A + 1];
+          let hashC = permutation[B];
+          let hashD = permutation[B + 1];
+
+          let result = lerp(
+            lerp(grad(hashA, x, y), grad(hashC, x - 1, y), u),
+            lerp(grad(hashB, x, y - 1), grad(hashD, x - 1, y - 1), u),
+            v
+          );
+          return result * 1.5;
+        }
+
+        function getTerrainNoise(x, z) {
+          let total = 0;
+          let persistence = 0.5;
+          let frequency = 0.015;
+          let amplitude = 1;
+          let maxAmplitude = 0;
+          let octaves = 4;
+
+          for (let i = 0; i < octaves; i++) {
+            total += PerlinNoise(x * frequency, z * frequency) * amplitude;
+            maxAmplitude += amplitude;
+            amplitude *= persistence;
+            frequency *= 2;
+          }
+          return total / maxAmplitude;
+        }
+
+        return {
+          getHeight: getTerrainNoise,
+        };
+      };
+
+      // --- The main game class ---
+      class FieldGame {
+        constructor() {
+          this.scene = null;
+          this.controller = null;
+          this.camera = null;
+          this.renderer = null;
+          this.clock = null;
+          this.isRunning = false;
+
+          this.seed = Math.floor(Date.now() / 1000);
+          this.noiseGenerator = NoiseGenerator(this.seed);
+
+          // Background music
+          this.bgMusic = new Audio("bombiran.m4a");
+          this.bgMusic.loop = true;
+          this.bgMusic.volume = 0.5;
+
+          this.keys = {
+            w: false,
+            s: false,
+            a: false,
+            d: false,
+            shift: false,
+            c: false,
+          };
+
+          this.maxStamina = 100;
+          this.stamina = this.maxStamina;
+          this.staminaDrainRate = 25;
+          this.staminaRegenRate = 15;
+          this.isSprinting = false;
+
+          this.baseSpeed = 0.25;
+          this.sprintMultiplier = 3.0;
+          this.currentMoveSpeed = this.baseSpeed;
+          this.rotationSpeed = 0.002;
+          this.mouseSensitivity = 1.0;
+          this.isLocked = false;
+          this.isHUDVisible = false;
+
+          this.STAND_HEIGHT = 10;
+          this.CROUCH_HEIGHT = 5;
+          this.playerYOffset = this.STAND_HEIGHT;
+
+          this.crouchSmoothFactor = 12.0;
+          this.terrainFollowFactor = 5.0;
+
+          this.fpsTime = 0;
+          this.fpsCount = 0;
+          this.fpsDisplay = 0;
+          this.tpsTime = 0;
+          this.tpsCount = 0;
+          this.tpsDisplay = 0;
+
+          this.CHUNK_SIZE = 100;
+          this.LOAD_DISTANCE = 5;
+          this.segments = 32;
+          this.chunks = new Map();
+          this.noiseAmplitude = 10;
+          this.material = new THREE.MeshLambertMaterial({ color: 0x4caf50 });
+        }
+
+        getTerrainHeight(x, z) {
+          return this.noiseGenerator.getHeight(x, z) * this.noiseAmplitude;
+        }
+
+        init() {
+          this.scene = new THREE.Scene();
+          this.clock = new THREE.Clock();
+
+          const skyColor = 0x87ceeb;
+          const nearDistance = 50;
+          const farDistance = this.CHUNK_SIZE * this.LOAD_DISTANCE * 0.7;
+          this.scene.fog = new THREE.Fog(skyColor, nearDistance, farDistance);
+
+          this.controller = new THREE.Object3D();
+          this.controller.position.set(0, this.STAND_HEIGHT, 0);
+          this.scene.add(this.controller);
+
+          this.camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            farDistance * 2
+          );
+          this.camera.position.set(0, 0, 0);
+          this.controller.add(this.camera);
+
+          this.renderer = new THREE.WebGLRenderer({ antialias: true });
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+          this.renderer.setPixelRatio(window.devicePixelRatio);
+          this.renderer.setClearColor(0x87ceeb);
+          document.body.appendChild(this.renderer.domElement);
+
+          const ambientLight = new THREE.AmbientLight(0xcccccc, 0.6);
+          this.scene.add(ambientLight);
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+          directionalLight.position.set(500, 1000, 500);
+          this.scene.add(directionalLight);
+
+          this.setupEventListeners();
+          window.addEventListener(
+            "resize",
+            this.onWindowResize.bind(this),
+            false
+          );
+
+          this.updateTerrainChunks();
+          this.renderer.render(this.scene, this.camera);
+        }
+
+        start() {
+          this.isRunning = true;
+          document.body.requestPointerLock();
+          
+          // Start background music
+          this.bgMusic.play().catch((err) => {
+            console.log("Audio playback failed:", err);
+          });
+          
+          this.animate();
+        }
+
+        generateChunk(chunkX, chunkZ) {
+          const geometry = new THREE.PlaneGeometry(
+            this.CHUNK_SIZE,
+            this.CHUNK_SIZE,
+            this.segments,
+            this.segments
+          );
+          geometry.rotateX(-Math.PI / 2);
+
+          const vertices = geometry.attributes.position.array;
+          for (let i = 0; i < vertices.length; i += 3) {
+            const worldX = vertices[i] + chunkX * this.CHUNK_SIZE;
+            const worldZ = vertices[i + 2] + chunkZ * this.CHUNK_SIZE;
+            vertices[i + 1] = this.getTerrainHeight(worldX, worldZ);
+          }
+
+          geometry.attributes.position.needsUpdate = true;
+          geometry.computeVertexNormals();
+
+          const chunkMesh = new THREE.Mesh(geometry, this.material);
+          chunkMesh.position.set(
+            chunkX * this.CHUNK_SIZE,
+            0,
+            chunkZ * this.CHUNK_SIZE
+          );
+          return chunkMesh;
+        }
+
+        updateTerrainChunks() {
+          const playerChunkX = Math.floor(
+            this.controller.position.x / this.CHUNK_SIZE
+          );
+          const playerChunkZ = Math.floor(
+            this.controller.position.z / this.CHUNK_SIZE
+          );
+          const newChunks = new Map();
+
+          for (let x = -this.LOAD_DISTANCE; x <= this.LOAD_DISTANCE; x++) {
+            for (let z = -this.LOAD_DISTANCE; z <= this.LOAD_DISTANCE; z++) {
+              const chunkX = playerChunkX + x;
+              const chunkZ = playerChunkZ + z;
+              const key = `${chunkX}_${chunkZ}`;
+              if (this.chunks.has(key)) {
+                newChunks.set(key, this.chunks.get(key));
+              } else {
+                const mesh = this.generateChunk(chunkX, chunkZ);
+                this.scene.add(mesh);
+                newChunks.set(key, mesh);
+              }
+            }
+          }
+
+          for (const [key, mesh] of this.chunks.entries()) {
+            if (!newChunks.has(key)) {
+              this.scene.remove(mesh);
+              mesh.geometry.dispose();
+            }
+          }
+          this.chunks = newChunks;
+        }
+
+        setupEventListeners() {
+          document.addEventListener(
+            "pointerlockchange",
+            this.lockChangeAlert.bind(this),
+            false
+          );
+          document.addEventListener(
+            "keydown",
+            this.handleKeyDown.bind(this),
+            false
+          );
+          document.addEventListener(
+            "keyup",
+            this.handleKeyUp.bind(this),
+            false
+          );
+        }
+
+        lockChangeAlert() {
+          if (document.pointerLockElement === document.body) {
+            this.isLocked = true;
+            document.addEventListener(
+              "mousemove",
+              this.onMouseMove.bind(this),
+              false
+            );
+          } else {
+            this.isLocked = false;
+            document.removeEventListener(
+              "mousemove",
+              this.onMouseMove.bind(this),
+              false
+            );
+          }
+        }
+
+        handleKeyDown(event) {
+          if (!this.isRunning) return;
+          switch (event.code) {
+            case "KeyW":
+              this.keys.w = true;
+              break;
+            case "KeyS":
+              this.keys.s = true;
+              break;
+            case "KeyA":
+              this.keys.a = true;
+              break;
+            case "KeyD":
+              this.keys.d = true;
+              break;
+            case "ShiftLeft":
+            case "ShiftRight":
+              this.keys.shift = true;
+              break;
+            case "KeyC":
+              this.keys.c = true;
+              break;
+          }
+        }
+        
+        handleKeyUp(event) {
+          if (!this.isRunning) return;
+          switch (event.code) {
+            case "KeyW":
+              this.keys.w = false;
+              break;
+            case "KeyS":
+              this.keys.s = false;
+              break;
+            case "KeyA":
+              this.keys.a = false;
+              break;
+            case "KeyD":
+              this.keys.d = false;
+              break;
+            case "ShiftLeft":
+            case "ShiftRight":
+              this.keys.shift = false;
+              break;
+            case "KeyC":
+              this.keys.c = false;
+              break;
+          }
+        }
+
+        onMouseMove(event) {
+          if (!this.isLocked) return;
+          this.controller.rotation.y -=
+            event.movementX * this.rotationSpeed * this.mouseSensitivity;
+          let pitch =
+            this.camera.rotation.x -
+            event.movementY * this.rotationSpeed * this.mouseSensitivity;
+          this.camera.rotation.x = Math.max(
+            -Math.PI / 2,
+            Math.min(Math.PI / 2, pitch)
+          );
+          this.camera.rotation.z = 0;
+        }
+
+        updateHUD(delta) {
+          if (this.isHUDVisible) {
+            document.getElementById(
+              "coord-display"
+            ).textContent = `X: ${this.controller.position.x.toFixed(
+              2
+            )} | Z: ${this.controller.position.z.toFixed(2)}`;
+            document.getElementById(
+              "seed-display"
+            ).textContent = `Seed: ${this.seed}`;
+
+            document.getElementById(
+              "fps-counter"
+            ).textContent = `FPS: ${this.fpsDisplay}`;
+            document.getElementById(
+              "tps-counter"
+            ).textContent = `TPS: ${this.tpsDisplay}`;
+          }
+
+          const staminaBarFill = document.getElementById("stamina-bar-fill");
+          const staminaPercent = (this.stamina / this.maxStamina) * 100;
+          staminaBarFill.style.width = `${staminaPercent}%`;
+          staminaBarFill.style.backgroundColor = this.isSprinting
+            ? "#ff5555"
+            : "#4CAF50";
+          staminaBarFill.style.opacity =
+            staminaPercent === 100 && !this.keys.shift ? "0.5" : "1.0";
+        }
+
+        animate() {
+          if (!this.isRunning) return;
+          requestAnimationFrame(this.animate.bind(this));
+          const delta = this.clock.getDelta();
+
+          this.fpsCount++;
+          this.fpsTime += delta;
+          if (this.fpsTime >= 1.0) {
+            this.fpsDisplay = this.fpsCount;
+            this.fpsCount = 0;
+            this.fpsTime = 0;
+          }
+          this.tpsCount++;
+          this.tpsTime += delta;
+          if (this.tpsTime >= 1.0) {
+            this.tpsDisplay = this.tpsCount;
+            this.tpsCount = 0;
+            this.tpsTime = 0;
+          }
+
+          this.handleMovement(delta);
+          this.updateTerrainChunks();
+          this.updateHUD(delta);
+          this.renderer.render(this.scene, this.camera);
+        }
+
+        handleMovement(delta) {
+          const isAttemptingToSprint = this.keys.shift;
+          const isActuallySprinting =
+            isAttemptingToSprint && this.stamina > 0.01;
+
+          this.isSprinting = isActuallySprinting;
+
+          if (isActuallySprinting) {
+            this.stamina = Math.max(
+              0,
+              this.stamina - this.staminaDrainRate * delta
+            );
+          } else if (!isAttemptingToSprint) {
+            this.stamina = Math.min(
+              this.maxStamina,
+              this.stamina + this.staminaRegenRate * delta
+            );
+          }
+
+          this.currentMoveSpeed = this.isSprinting
+            ? this.baseSpeed * this.sprintMultiplier
+            : this.baseSpeed;
+
+          const targetYOffset = this.keys.c
+            ? this.CROUCH_HEIGHT
+            : this.STAND_HEIGHT;
+          this.playerYOffset +=
+            (targetYOffset - this.playerYOffset) *
+            this.crouchSmoothFactor *
+            delta;
+
+          const actualMoveSpeed = this.currentMoveSpeed * 60 * delta;
+          const direction = new THREE.Vector3();
+          this.controller.getWorldDirection(direction);
+          direction.y = 0;
+          direction.normalize();
+          const right = new THREE.Vector3()
+            .crossVectors(this.controller.up, direction)
+            .normalize();
+
+          if (this.keys.w)
+            this.controller.position.addScaledVector(
+              direction,
+              -actualMoveSpeed
+            );
+          if (this.keys.s)
+            this.controller.position.addScaledVector(
+              direction,
+              actualMoveSpeed
+            );
+          if (this.keys.a)
+            this.controller.position.addScaledVector(right, -actualMoveSpeed);
+          if (this.keys.d)
+            this.controller.position.addScaledVector(right, actualMoveSpeed);
+
+          const groundHeight = this.getTerrainHeight(
+            this.controller.position.x,
+            this.controller.position.z
+          );
+          const targetY = groundHeight + this.playerYOffset;
+          this.controller.position.y +=
+            (targetY - this.controller.position.y) *
+            this.terrainFollowFactor *
+            delta;
+        }
+
+        updateSetting(key, value) {
+          if (key === "sensitivity") {
+            this.mouseSensitivity = value;
+          } else if (key === "renderDistance") {
+            this.LOAD_DISTANCE = value;
+            const farDistance = this.CHUNK_SIZE * this.LOAD_DISTANCE * 0.7;
+            this.scene.fog.far = farDistance;
+            this.camera.far = farDistance * 2;
+            this.camera.updateProjectionMatrix();
+          } else if (key === "showHUD") {
+            this.isHUDVisible = value;
+            const infoHud = document.getElementById("info-hud-container");
+            const staminaHud = document.getElementById("stamina-hud-container");
+            if (value) {
+              infoHud.classList.add("visible");
+              staminaHud.classList.add("visible");
+            } else {
+              infoHud.classList.remove("visible");
+              staminaHud.classList.remove("visible");
+            }
+          }
+        }
+
+        onWindowResize() {
+          this.camera.aspect = window.innerWidth / window.innerHeight;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+      }
+
+      // --- Game Initialization and Menu Logic ---
+      window.onload = function () {
+        const game = new FieldGame();
+        game.init();
+
+        const mainMenu = document.getElementById("main-menu");
+        const settingsMenu = document.getElementById("settings-menu");
+
+        const startGameBtn = document.getElementById("start-game-btn");
+        const settingsBtn = document.getElementById("settings-btn");
+        const backBtn = document.getElementById("back-to-main-btn");
+
+        const sensitivitySlider = document.getElementById("sensitivity-slider");
+        const sensitivityValue = document.getElementById("sensitivity-value");
+        const renderDistSlider = document.getElementById(
+          "render-distance-slider"
+        );
+        const renderDistValue = document.getElementById(
+          "render-distance-value"
+        );
+        const showHudToggle = document.getElementById("show-hud-toggle");
+
+        sensitivityValue.textContent = game.mouseSensitivity.toFixed(1);
+        sensitivitySlider.value = game.mouseSensitivity;
+        renderDistValue.textContent = game.LOAD_DISTANCE;
+        renderDistSlider.value = game.LOAD_DISTANCE;
+        showHudToggle.checked = game.isHUDVisible;
+
+        startGameBtn.addEventListener("click", () => {
+          mainMenu.classList.add("hidden");
+          game.start();
+        });
+
+        settingsBtn.addEventListener("click", () => {
+          mainMenu.classList.add("hidden");
+          settingsMenu.classList.remove("hidden");
+        });
+
+        backBtn.addEventListener("click", () => {
+          settingsMenu.classList.add("hidden");
+          mainMenu.classList.remove("hidden");
+        });
+
+        sensitivitySlider.addEventListener("input", (e) => {
+          const value = parseFloat(e.target.value);
+          sensitivityValue.textContent = value.toFixed(1);
+          game.updateSetting("sensitivity", value);
+        });
+
+        renderDistSlider.addEventListener("input", (e) => {
+          const value = parseInt(e.target.value);
+          renderDistValue.textContent = value;
+          game.updateSetting("renderDistance", value);
+        });
+
+        showHudToggle.addEventListener("change", (e) => {
+          game.updateSetting("showHUD", e.target.checked);
+        });
+      };
+    </script>
+  </body>
+</html>
